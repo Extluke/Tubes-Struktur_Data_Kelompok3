@@ -3,41 +3,144 @@
 #include <iostream>
 #include <string>
 #include <limits>
+#include <cctype>
 
 using namespace std;
 
 /* ========================================================================= */
-/*                         FUNGSI UTILITAS TERMINAL                          */
+/*                         FUNGSI UTILITAS & VALIDASI INPUT                  */
 /* ========================================================================= */
+
+/* Memotong spasi (whitespace) di awal dan akhir string */
+static string trimString(const string &str) {
+    size_t first = str.find_first_not_of(" \t\r\n");
+    if (first == string::npos) return "";
+    size_t last = str.find_last_not_of(" \t\r\n");
+    return str.substr(first, (last - first + 1));
+}
 
 /* Prosedur untuk menahan layar terminal hingga pengguna menekan tombol Enter */
 void pauseTerminal() {
     cout << "\nTekan Enter untuk melanjutkan...";
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    string dummy;
+    getline(cin, dummy);
 }
 
-/* Membaca input integer secara aman dari user */
-int inputInt(string prompt) {
-    int val;
+/* Membaca string yang divalidasi tidak boleh kosong atau hanya berisi spasi */
+string inputString(string prompt, string fieldName = "Input") {
+    string str;
     while (true) {
         cout << prompt;
-        if (cin >> val) {
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            return val;
-        } else {
-            cout << "[ERROR] Input tidak valid! Harap masukkan angka bulat.\n";
+        if (!getline(cin, str)) {
             cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            continue;
+        }
+        string trimmed = trimString(str);
+        if (trimmed.empty()) {
+            cout << "[ERROR] " << fieldName << " tidak boleh kosong! Harap masukkan data yang valid.\n";
+            continue;
+        }
+        return trimmed;
+    }
+}
+
+/* Membaca input angka bulat positif (misal durasi, jumlah unit, harga nominal) 
+   secara ketat dan mendeteksi jika user salah memasukkan titik/koma/huruf */
+int inputPositiveInt(string prompt, string fieldName = "Nilai") {
+    string input;
+    while (true) {
+        cout << prompt;
+        if (!getline(cin, input)) {
+            cin.clear();
+            continue;
+        }
+        string trimmed = trimString(input);
+        if (trimmed.empty()) {
+            cout << "[ERROR] " << fieldName << " tidak boleh kosong!\n";
+            continue;
+        }
+
+        /* 1. Deteksi apakah user memasukkan pemisah titik atau koma (misal: 20.000 atau 20.000.00) */
+        bool hasDotOrComma = false;
+        bool allDigits = true;
+        for (char c : trimmed) {
+            if (c == '.' || c == ',') {
+                hasDotOrComma = true;
+            } else if (!isdigit((unsigned char)c)) {
+                allDigits = false;
+            }
+        }
+
+        if (hasDotOrComma) {
+            cout << "[ERROR] Harap masukkan angka murni TANPA tanda titik atau koma!\n";
+            cout << "        Contoh: ketik 20000 (bukan 20.000 atau 20.000.00)\n";
+            continue;
+        }
+
+        if (!allDigits) {
+            cout << "[ERROR] " << fieldName << " harus berupa angka bulat positif (tanpa huruf/simbol)!\n";
+            continue;
+        }
+
+        /* 2. Konversi dan pengecekan batas nilai */
+        try {
+            long long val = stoll(trimmed);
+            if (val <= 0) {
+                cout << "[ERROR] " << fieldName << " harus bernilai positif (> 0)!\n";
+                continue;
+            }
+            if (val > 2000000000LL) {
+                cout << "[ERROR] " << fieldName << " terlalu besar melebihi kapasitas sistem!\n";
+                continue;
+            }
+            return (int)val;
+        } catch (...) {
+            cout << "[ERROR] Format angka tidak valid!\n";
         }
     }
 }
 
-/* Membaca string baris lengkap dari user */
-string inputString(string prompt) {
-    string str;
-    cout << prompt;
-    getline(cin, str);
-    return str;
+/* Membaca pilihan nomor menu dan memastikan angka berada dalam rentang [minVal, maxVal] */
+int inputMenuChoice(string prompt, int minVal, int maxVal) {
+    string input;
+    while (true) {
+        cout << prompt;
+        if (!getline(cin, input)) {
+            cin.clear();
+            continue;
+        }
+        string trimmed = trimString(input);
+        if (trimmed.empty()) {
+            cout << "[ERROR] Pilihan menu tidak boleh kosong!\n";
+            continue;
+        }
+
+        bool allDigits = true;
+        for (char c : trimmed) {
+            if (!isdigit((unsigned char)c)) {
+                allDigits = false;
+                break;
+            }
+        }
+
+        if (!allDigits) {
+            cout << "[ERROR] Pilihan menu harus berupa angka bulat antara " 
+                 << minVal << " sampai " << maxVal << "!\n";
+            continue;
+        }
+
+        try {
+            long long val = stoll(trimmed);
+            if (val < minVal || val > maxVal) {
+                cout << "[ERROR] Pilihan di luar rentang! Harap pilih angka [" 
+                     << minVal << " - " << maxVal << "].\n";
+                continue;
+            }
+            return (int)val;
+        } catch (...) {
+            cout << "[ERROR] Pilihan tidak valid!\n";
+        }
+    }
 }
 
 /* Membuat ringkasan teks perlengkapan dari child linked list untuk antrean pengembalian */
@@ -126,35 +229,28 @@ void menuTambahUpdate(BinTree &T) {
         cout << " 4. Update Kategori Paket Penyewa\n";
         cout << " 0. Kembali ke Menu Utama\n";
         cout << "=======================================================\n";
-        subPilih = inputInt("Pilih sub-menu [0-4]: ");
+        subPilih = inputMenuChoice("Pilih sub-menu [0-4]: ", 0, 4);
 
         if (subPilih == 1) {
             cout << "\n--- Tambah Penyewa Baru ---\n";
-            string nama = inputString("Masukkan Nama Penyewa (Key BST unik): ");
-            if (nama.empty()) {
-                cout << "[ERROR] Nama penyewa tidak boleh kosong!\n";
-                continue;
-            }
+            string nama = inputString("Masukkan Nama Penyewa (Key BST unik): ", "Nama penyewa");
 
             /* Cek apakah nama sudah terdaftar */
             if (findNodePenyewa(T, nama) != Nil) {
                 cout << "[PERINGATAN] Penyewa dengan nama \"" << nama << "\" sudah ada dalam sistem!\n";
+                pauseTerminal();
                 continue;
             }
 
             cout << "Pilihan Kategori Paket Valid:\n";
             cout << " 1. Solo Camp\n 2. Family Camp\n 3. Hiking/Pendakian\n 4. Ekspedisi\n";
-            int pilKategori = inputInt("Pilih nomor paket [1-4]: ");
+            int pilKategori = inputMenuChoice("Pilih nomor paket [1-4]: ", 1, 4);
             string kategori = "Solo Camp";
             if (pilKategori == 2) kategori = "Family Camp";
             else if (pilKategori == 3) kategori = "Hiking/Pendakian";
             else if (pilKategori == 4) kategori = "Ekspedisi";
 
-            int durasi = inputInt("Masukkan Durasi Sewa (hari): ");
-            if (durasi <= 0) {
-                cout << "[PERINGATAN] Durasi sewa minimal 1 hari. Diset otomatis ke 1 hari.\n";
-                durasi = 1;
-            }
+            int durasi = inputPositiveInt("Masukkan Durasi Sewa (hari): ", "Durasi sewa");
 
             infotypePenyewa info;
             info.namaPenyewa = nama;
@@ -163,47 +259,43 @@ void menuTambahUpdate(BinTree &T) {
 
             adrPenyewa P = alokasiPenyewa(info);
             insertNodePenyewa(T, P);
-            cout << "[BERHASIL] Penyewa \"" << nama << "\" berhasil ditambahkan ke BST.\n";
+            cout << "[BERHASIL] Penyewa \"" << nama << "\" berhasil didaftarkan ke sistem.\n";
             pauseTerminal();
 
         } else if (subPilih == 2) {
             cout << "\n--- Tambah Perlengkapan ke Penyewa ---\n";
-            string nama = inputString("Masukkan Nama Penyewa target: ");
+            string nama = inputString("Masukkan Nama Penyewa target: ", "Nama penyewa");
             adrPenyewa P = findNodePenyewa(T, nama);
             if (P == Nil) {
                 cout << "[ERROR] Penyewa dengan nama \"" << nama << "\" tidak ditemukan!\n";
             } else {
                 cout << "[INFO] Penyewa ditemukan: " << P->info.namaPenyewa 
                      << " (" << P->info.kategoriPaket << ")\n";
-                string namaAlat = inputString("Masukkan Nama Perlengkapan: ");
-                int jumlah = inputInt("Masukkan Jumlah Unit: ");
-                int harga = inputInt("Masukkan Harga Sewa per Hari (Rp): ");
+                string namaAlat = inputString("Masukkan Nama Perlengkapan: ", "Nama perlengkapan");
+                int jumlah = inputPositiveInt("Masukkan Jumlah Unit: ", "Jumlah unit");
+                int harga = inputPositiveInt("Masukkan Harga Sewa per Hari (Rp): ", "Harga sewa");
 
-                if (jumlah <= 0 || harga <= 0) {
-                    cout << "[ERROR] Jumlah unit dan harga sewa harus bernilai positif (> 0)!\n";
-                } else {
-                    infotypeAlat infoAlat = {namaAlat, jumlah, harga};
-                    adrAlat nodeAlat = alokasiAlat(infoAlat);
-                    insertLastAlat(P->daftarAlat, nodeAlat);
-                    cout << "[BERHASIL] Perlengkapan berhasil didaftarkan ke daftar sewa \"" 
-                         << P->info.namaPenyewa << "\".\n";
-                }
+                infotypeAlat infoAlat = {namaAlat, jumlah, harga};
+                adrAlat nodeAlat = alokasiAlat(infoAlat);
+                insertLastAlat(P->daftarAlat, nodeAlat);
+                cout << "[BERHASIL] Perlengkapan berhasil didaftarkan ke daftar sewa \"" 
+                     << P->info.namaPenyewa << "\".\n";
             }
             pauseTerminal();
 
         } else if (subPilih == 3) {
             cout << "\n--- Update Durasi Sewa Penyewa ---\n";
-            string nama = inputString("Masukkan Nama Penyewa: ");
-            int durasiBaru = inputInt("Masukkan Durasi Sewa Baru (hari): ");
+            string nama = inputString("Masukkan Nama Penyewa: ", "Nama penyewa");
+            int durasiBaru = inputPositiveInt("Masukkan Durasi Sewa Baru (hari): ", "Durasi sewa");
             updateDurasi(T, nama, durasiBaru);
             pauseTerminal();
 
         } else if (subPilih == 4) {
             cout << "\n--- Update Kategori Paket Penyewa ---\n";
-            string nama = inputString("Masukkan Nama Penyewa: ");
+            string nama = inputString("Masukkan Nama Penyewa: ", "Nama penyewa");
             cout << "Pilihan Kategori Paket Valid:\n";
             cout << " 1. Solo Camp\n 2. Family Camp\n 3. Hiking/Pendakian\n 4. Ekspedisi\n";
-            int pilKategori = inputInt("Pilih nomor paket baru [1-4]: ");
+            int pilKategori = inputMenuChoice("Pilih nomor paket baru [1-4]: ", 1, 4);
             string kategoriBaru = "Solo Camp";
             if (pilKategori == 2) kategoriBaru = "Family Camp";
             else if (pilKategori == 3) kategoriBaru = "Hiking/Pendakian";
@@ -228,7 +320,7 @@ void menuTraversal(BinTree T) {
         cout << " 4. Traversal Level-Order (Breadth First Search - BFS)\n";
         cout << " 0. Kembali ke Menu Utama\n";
         cout << "=======================================================\n";
-        subPilih = inputInt("Pilih sub-menu [0-4]: ");
+        subPilih = inputMenuChoice("Pilih sub-menu [0-4]: ", 0, 4);
 
         if (isEmptyTree(T)) {
             cout << "\n[INFO] Tree penyewaan masih kosong! Belum ada data penyewa.\n";
@@ -269,10 +361,10 @@ void menuPencarian(BinTree T) {
         cout << " 4. Cari Penyewa Berdasarkan Jumlah Jenis Perlengkapan\n";
         cout << " 0. Kembali ke Menu Utama\n";
         cout << "=======================================================\n";
-        subPilih = inputInt("Pilih sub-menu [0-4]: ");
+        subPilih = inputMenuChoice("Pilih sub-menu [0-4]: ", 0, 4);
 
         if (subPilih == 1) {
-            string nama = inputString("Masukkan Nama Penyewa yang dicari: ");
+            string nama = inputString("Masukkan Nama Penyewa yang dicari: ", "Nama penyewa");
             adrPenyewa P = findNodePenyewa(T, nama);
             if (P != Nil) {
                 cout << "\n[DITEMUKAN] Data penyewa berhasil ditemukan:\n";
@@ -283,17 +375,17 @@ void menuPencarian(BinTree T) {
             pauseTerminal();
 
         } else if (subPilih == 2) {
-            string namaAlat = inputString("Masukkan Nama Perlengkapan yang dicari: ");
+            string namaAlat = inputString("Masukkan Nama Perlengkapan yang dicari: ", "Nama perlengkapan");
             cariByAlat(T, namaAlat);
             pauseTerminal();
 
         } else if (subPilih == 3) {
-            int durasi = inputInt("Masukkan Durasi Sewa (hari) yang dicari: ");
+            int durasi = inputPositiveInt("Masukkan Durasi Sewa (hari) yang dicari: ", "Durasi sewa");
             cariByDurasi(T, durasi);
             pauseTerminal();
 
         } else if (subPilih == 4) {
-            int targetJenis = inputInt("Masukkan Target Jumlah Jenis Alat: ");
+            int targetJenis = inputPositiveInt("Masukkan Target Jumlah Jenis Alat: ", "Target jumlah jenis alat");
             cariByJumlahAlat(T, targetJenis);
             pauseTerminal();
         }
@@ -313,26 +405,26 @@ void menuHapus(BinTree &T) {
         cout << " 4. Hapus Satu Alat dari Daftar Sewa Penyewa (MLL)\n";
         cout << " 0. Kembali ke Menu Utama\n";
         cout << "=======================================================\n";
-        subPilih = inputInt("Pilih sub-menu [0-4]: ");
+        subPilih = inputMenuChoice("Pilih sub-menu [0-4]: ", 0, 4);
 
         if (subPilih == 1) {
-            string nama = inputString("Masukkan Nama Penyewa yang akan dihapus: ");
+            string nama = inputString("Masukkan Nama Penyewa yang akan dihapus: ", "Nama penyewa");
             deleteNodePenyewa(T, nama);
             pauseTerminal();
 
         } else if (subPilih == 2) {
-            string nama = inputString("Masukkan Nama Penyewa yang durasinya akan direset: ");
+            string nama = inputString("Masukkan Nama Penyewa yang durasinya akan direset: ", "Nama penyewa");
             hapusDurasiPenyewa(T, nama);
             pauseTerminal();
 
         } else if (subPilih == 3) {
-            int batas = inputInt("Masukkan Batas Durasi yang akan direset ke 0 hari: ");
+            int batas = inputPositiveInt("Masukkan Batas Durasi yang akan direset ke 0 hari: ", "Batas durasi");
             hapusDurasiPenyewa(T, batas);
             pauseTerminal();
 
         } else if (subPilih == 4) {
-            string nama = inputString("Masukkan Nama Penyewa: ");
-            string alat = inputString("Masukkan Nama Alat yang ingin dihapus dari penyewa: ");
+            string nama = inputString("Masukkan Nama Penyewa: ", "Nama penyewa");
+            string alat = inputString("Masukkan Nama Alat yang ingin dihapus dari penyewa: ", "Nama alat");
             hapusAlatDariPenyewa(T, nama, alat);
             pauseTerminal();
         }
@@ -351,7 +443,7 @@ void menuPengembalian(BinTree &T, QueueInspeksi &Q, StackRiwayat &S) {
     cout << " 4. Data penyewa aktif dikeluarkan dari BST.\n";
     cout << "------------------------------------------------------------------------\n";
 
-    string nama = inputString("Masukkan Nama Penyewa yang mengembalikan barang: ");
+    string nama = inputString("Masukkan Nama Penyewa yang mengembalikan barang: ", "Nama penyewa");
     adrPenyewa P = findNodePenyewa(T, nama);
 
     if (P == Nil) {
@@ -366,7 +458,7 @@ void menuPengembalian(BinTree &T, QueueInspeksi &Q, StackRiwayat &S) {
     long long totalBiaya = hitungTotalBiaya(P);
     string ringkasan = buatRingkasanAlat(P->daftarAlat);
 
-    string konfirmasi = inputString("Konfirmasi proses pengembalian perlengkapan? (y/n): ");
+    string konfirmasi = inputString("Konfirmasi proses pengembalian perlengkapan? (y/n): ", "Konfirmasi");
     if (konfirmasi != "y" && konfirmasi != "Y") {
         cout << "[DIBATALKAN] Proses pengembalian dibatalkan oleh pengguna.\n";
         pauseTerminal();
@@ -413,7 +505,7 @@ void menuQueue(QueueInspeksi &Q) {
         cout << " 2. Proses Perlengkapan Terdepan (DeQueue)\n";
         cout << " 0. Kembali ke Menu Utama\n";
         cout << "=======================================================\n";
-        subPilih = inputInt("Pilih sub-menu [0-2]: ");
+        subPilih = inputMenuChoice("Pilih sub-menu [0-2]: ", 0, 2);
 
         if (subPilih == 1) {
             printQueue(Q);
@@ -445,7 +537,7 @@ void menuStack(StackRiwayat &S) {
         cout << " 3. Batalkan / Keluarkan Transaksi Teratas (Pop)\n";
         cout << " 0. Kembali ke Menu Utama\n";
         cout << "=======================================================\n";
-        subPilih = inputInt("Pilih sub-menu [0-3]: ");
+        subPilih = inputMenuChoice("Pilih sub-menu [0-3]: ", 0, 3);
 
         if (subPilih == 1) {
             printStack(S);
@@ -481,7 +573,7 @@ void menuStatistik(BinTree T) {
         cout << " 3. Statistik Durasi Sewa (Terlama, Tercepat, Rata-rata)\n";
         cout << " 0. Kembali ke Menu Utama\n";
         cout << "=======================================================\n";
-        subPilih = inputInt("Pilih sub-menu [0-3]: ");
+        subPilih = inputMenuChoice("Pilih sub-menu [0-3]: ", 0, 3);
 
         if (subPilih == 1) {
             cout << "\n=======================================================\n";
@@ -492,7 +584,7 @@ void menuStatistik(BinTree T) {
         } else if (subPilih == 2) {
             cout << "\nPilihan Kategori Paket:\n";
             cout << " 1. Solo Camp\n 2. Family Camp\n 3. Hiking/Pendakian\n 4. Ekspedisi\n";
-            int pilKategori = inputInt("Pilih kategori paket [1-4]: ");
+            int pilKategori = inputMenuChoice("Pilih kategori paket [1-4]: ", 1, 4);
             string kategori = "Solo Camp";
             if (pilKategori == 2) kategori = "Family Camp";
             else if (pilKategori == 3) kategori = "Hiking/Pendakian";
@@ -542,7 +634,7 @@ int main() {
         cout << " 8. Laporan & Statistika\n";
         cout << " 0. Keluar Program\n";
         cout << "=======================================================\n";
-        pilihan = inputInt("Pilih menu [0-8]: ");
+        pilihan = inputMenuChoice("Pilih menu [0-8]: ", 0, 8);
 
         switch (pilihan) {
             case 1:
@@ -579,8 +671,6 @@ int main() {
                 cout << "=======================================================\n";
                 break;
             default:
-                cout << "[PERINGATAN] Pilihan menu tidak valid! Harap pilih angka 0 - 8.\n";
-                pauseTerminal();
                 break;
         }
     }
