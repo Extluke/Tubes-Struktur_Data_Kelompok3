@@ -1,0 +1,31 @@
+# =============================================================================
+# .gitignore - Sistem Penyewaan Perlengkapan Outdoor / Camping
+# Hanya menyertakan source code C++ (.h, .cpp) dan dokumentasi proyek (README.md)
+# =============================================================================
+
+# Materi Perkuliahan & Dokumen Panduan Tugas Besar (Lokal Saja)
+materi/
+rules/
+*.pdf
+
+# File Konfigurasi AI & Panduan Agen Lokal
+AGENTS.md
+GEMINI.md
+
+# File Kompilasi & Binary Executable
+*.exe
+*.o
+*.obj
+*.out
+*.dll
+
+# Direktori & File Konfigurasi IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.tmp
+*.log
+
+# File OS / Environment
+Thumbs.db
+.DS_Store
